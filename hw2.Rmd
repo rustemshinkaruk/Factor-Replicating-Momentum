@@ -1,7 +1,7 @@
 ---
-title: "hw2"
+
 author: "Rustem Shinkaruk"
-date: "April 20, 2019"
+
 output: pdf_document
 ---
 
