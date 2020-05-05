@@ -101,7 +101,7 @@ Problem 6.
 I retrieved the data for Levered Momentum strategy for the last decade. We can see that since crisis it didn’t beat the market in most of the time. 
 
 
-![alt text](https://github.com/rustemshinkaruk/Factor-Replicating-Momentum/blob/master/table_6.png)
+![alt text](https://github.com/rustemshinkaruk/Factor-Replicating-Momentum/blob/master/table_6.jpg)
 
 
 
