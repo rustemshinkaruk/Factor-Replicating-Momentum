@@ -1,6 +1,6 @@
 # Factor-Replicating-Momentum
 
-I replicated Mometum factor from Fama French paper and used some visualitation tools to depict the performance compared to S&p500 on the graph.
+I replicated Mometum factor from Fama French paper and used some visualitation tools to depict the performance compared to S&p500 on the graph. Results at the end.
 
 Problem 1.
 
