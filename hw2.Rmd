@@ -1,0 +1,285 @@
+---
+title: "hw2"
+author: "Rustem Shinkaruk"
+date: "April 20, 2019"
+output: pdf_document
+---
+
+
+Problem 1
+
+I used the following data in this sample:
+
+Specify the path on WRDS how to get each and date frame and variables
+
+
+
+```{r,eval=TRUE}
+
+library(data.table)
+x=as.data.table(read.csv("D:\\(18) 16 June 2019\\Quantitative Asset Management, Bernard\\hw2\\data.csv", header = FALSE, sep = ","))
+x=x[,c(2,5,6,7)]
+
+
+
+ps2_q1 <- function(x){
+  setnames(x,c("id","date","ret","amount"))
+  x=x[-1,]
+  x$id=as.character(x$id)
+  x$date=as.Date(x$date,format="%m/%d/%Y")
+  x$ret=as.numeric(as.character(x$ret))
+  x$amount=as.integer(as.character(x$amount))
+  x=na.omit(x)
+  x=x[-which(x$ret==-99),]
+  
+  #=====================================================================
+  #problem 1
+  setkey(x,id,date)
+  y=x[,sum(amount),by=date]#sum market cap for each month
+  y=y[order(date),]
+  y=y[,lagged_cap:=shift(V1)]
+  y=y[,V1:=NULL]
+  
+  d=x[,list(date,amount),by="id"]
+  vec=c('id','date')
+  setorderv(d,vec)
+  d[,amount.lag:=shift(amount),by="id"]
+  d=d[,amount:=NULL]
+  
+  
+  
+  z=merge(x,y,by="date")
+  z=merge(z,d,by=c("id","date"))
+  z=na.omit(z)
+  setkey(z,id,date)
+  z=z[order(date),]
+  z=z[,weights_lagged:=amount.lag/lagged_cap]
+  
+  t=z[,sum(ret*weights_lagged),by="date"]
+  g=z[,mean(ret),by="date"]
+  t=merge(t,g,by="date")
+  setnames(t,c("date","vaue_weighted_return","equal_weighted_return"))
+  
+  #plot(cumsum(t$value_weighted_return),type="l")
+  
+  t=merge(t,y,by="date")
+  
+  t[,Year:=year(date)]
+  t[,month:=month(date)]
+  t[,key:=paste(Year,month)]
+}
+
+aaa1=ps2_q1(x)
+
+
+
+
+```
+
+
+Problem 2
+
+Note that the lagged capitalziation of bonds in millions and of stocks in units in the final table
+
+```{r,eval=FALSE}
+x=as.data.table(read.csv("D:\\(18) 16 June 2019\\Quantitative Asset Management, Bernard\\hw1\\data.csv", header = TRUE, sep = ","))
+
+ps1_q1 <- function(x){
+  x[[2]]=as.Date(x[[2]],format="%m/%d/%Y")
+  
+  x=x[which(x$SHRCD==10 | x$SHRCD==11),]
+  x=x[which(x$EXCHCD==1 | x$EXCHCD==2 | x$EXCHCD==3),]
+  x$PRC=abs(x$PRC)
+  
+  index=which(x$RET=="C")
+  x$RET=as.numeric(as.character(x$RET))
+  x$DLRET=as.numeric(as.character(x$DLRET))
+  x$RET[index] <- 0#this one says that first return of the company on the day of creation is zero
+  
+  index3=which(!is.na(x$DLRET))
+  ff=x$DLRET[index3]
+  dd=x$RET
+  dd[dd=index3] <- ff
+  x$RET=dd
+  
+  x=x[-which(is.na(x$SHROUT))]
+  
+  index3=which(!is.na(x$DLRET))
+  dd=x$PRC
+  dd[dd=index3] <- dd[index3-1]*(1+x$RET[index3])
+  x$PRC=dd
+  
+  x=x[-which(is.na(x$PRC))]
+  setkey(x,PERMNO,date)
+  x[,mktcap:=abs(PRC)*SHROUT]
+  
+  cap_table=x[,sum(mktcap),by=date]#sum market cap for each month
+  setnames(cap_table,"V1","total_cap")
+  cap_table=cap_table[order(rank(date),total_cap)]
+  cap_table[,total_cap.lag:=shift(total_cap)]
+  cap_table[,total_cap:=NULL]
+  
+  each_month_cap=x[,list(date,mktcap),by=PERMNO]
+  vec=c('PERMNO','date')
+  setorderv(each_month_cap,vec)
+  each_month_cap[,mktcap.lag:=shift(mktcap),by="PERMNO"]
+  each_month_cap[,mktcap:=NULL]
+  
+  final=merge(x,cap_table,by='date')
+  final=merge(final,each_month_cap,by=c('PERMNO','date'))
+  final=final[complete.cases(final[, c('mktcap.lag','total_cap.lag')])]#remove NA rows that appeared by lagging
+  final[,weight:=mktcap.lag/total_cap.lag]#find weights 
+  final[,vwretd:=weight*RET]#find value weighted return
+  
+  value.returns=final[,sum(vwretd),by=date]
+  equal.returns=final[,mean(RET),by=date]
+  mktcap=final[,mean(total_cap.lag),by=date]
+  
+  fin_table=merge(value.returns,equal.returns,by='date')
+  fin_table=merge(fin_table,mktcap,by='date')
+  fin_table[,Year:=year(date)]
+  fin_table[,month:=month(date)]
+  fin_table[,key:=paste(Year,month)]
+  setnames(fin_table,"V1.x","Value weighted return")
+  setnames(fin_table,"V1.y","Equal weighted return")
+  setnames(fin_table,"V1","Lagged market cap")
+  return(fin_table)
+}
+
+aaa=ps1_q1(x)
+
+
+```
+
+
+```{r,eval=TRUE}
+xx=as.data.table(read.csv("D:\\(18) 16 June 2019\\Quantitative Asset Management, Bernard\\hw2\\riskless.csv", header = TRUE, sep = ","))
+
+
+ps2_q2=function(aaa,aaa1,xx){
+  xx$caldt=as.character(xx$caldt)
+  xx[[1]]=as.Date(xx[[1]],format="%Y%m%d")
+  setnames(xx,c("date","90day","30day"))
+  xx=xx[-1,]
+  xx[,Year:=year(date)]
+  xx[,month:=month(date)]
+  xx[,key:=paste(Year,month)]
+  
+  
+  t=merge(aaa,aaa1,by="date")
+  t=merge(t,xx,by="date")
+  table=t[,c(1,2,4,8,10,15)]
+  
+  setnames(table,c("date","stock_value_weighted","stock_lagged_cap","bond_value_weighted","bond_lagged_cap","riskless30"))
+  
+  table[,excess_stock:=stock_value_weighted-riskless30]
+  table[,excess_bond:=bond_value_weighted-riskless30]
+  table[,stock_value_weighted:=NULL]
+  table[,bond_value_weighted:=NULL]
+  return(table)
+}
+
+table=ps2_q2(aaa,aaa1,xx)
+```
+
+
+Problem 3
+```{r,eval=TRUE}
+
+ps2_q3=function(table){  
+  table=table[,stock_lagged_cap:=stock_lagged_cap*1000]
+  table=table[,bond_lagged_cap:=bond_lagged_cap*1000000]
+  
+  table[,Excess_Vw_Ret:=excess_stock*(stock_lagged_cap)/(stock_lagged_cap+bond_lagged_cap)+excess_bond*(bond_lagged_cap)/(stock_lagged_cap+bond_lagged_cap)]
+  
+  table[,Excess_60_40_Ret:=0.60*excess_stock+0.40*excess_bond]
+  
+  
+  
+  
+  sd_stock=rep(0,35)
+  k=1
+  for(i in 36:length(table$excess_stock)){
+    sd_stock=c(sd_stock,sd(table$excess_stock[k:i]))
+    k=k+1
+  }
+  
+  
+  sd_bond=rep(0,35)
+  k=1
+  for(i in 36:length(table$excess_stock)){
+    sd_bond=c(sd_bond,sd(table$excess_bond[k:i]))
+    k=k+1
+  }
+  
+  
+  table=table[,sigma_stock_inverse:=1/sd_stock]
+  table=table[,sigma_bond_inverse:=1/sd_bond]
+  table$sigma_stock_inverse[1:35]=0
+  table$sigma_bond_inverse[1:35]=0
+  
+  table=table[,k_unlevered:=1/(sigma_stock_inverse+sigma_bond_inverse)]
+  
+  table=table[,wieghts_stock_lagged_unlevered:=k_unlevered*sigma_stock_inverse]
+  table=table[,wieghts_bond_lagged_unlevered:=k_unlevered*sigma_bond_inverse]
+  table=table[,wieghts_stock_lagged_unlevered:=shift(wieghts_stock_lagged_unlevered)]
+  table=table[,wieghts_bond_lagged_unlevered:=shift(wieghts_bond_lagged_unlevered)]
+  
+  
+  
+  table=table[,rp_unlevered:=wieghts_stock_lagged_unlevered*excess_stock+wieghts_bond_lagged_unlevered*excess_bond]
+  
+  
+  func=function(x){
+    table[,rp_levered:=(x*sigma_stock_inverse)*excess_stock+(1-x*sigma_stock_inverse)*excess_bond]
+    return(sd(table$rp_levered[37:1103])*sqrt(12)-sd(table$excess_stock)*sqrt(12))
+  }
+    
+  k=uniroot(func,c(0,1))$root
+  table[,rp_levered:=(k*shift(sigma_stock_inverse))*excess_stock+(1-k*shift(sigma_stock_inverse))*excess_bond]
+  
+  table[,k_levered:=k]
+  
+  
+  table=table[37:1103,]
+  
+  table[,Year:=year(date)]
+  table[,month:=month(date)]
+  table=table[,-c(2,3)]
+  table=table[,-c(2)]
+  table=table[,-c(9,10)]
+  table=subset(table,date>='1930-01-01' & date<='2010-06-30')
+
+  return(table)
+}
+
+table3=ps2_q3(table)
+
+```
+
+
+
+Problem 4
+```{r,eval=TRUE}
+ps2_q4 <- function(table3){
+  final=data.frame(matrix(0,nrow=6,ncol=6))
+  colnames(final)=c("Excess Return","t-stat","Volatility","Sharpe Ratio","Skewness","Excess Kurtosis")
+  rownames(final)=c("CRSP Stocks","CRSP Bonds","Value Weighted Portfolio","60-40 Portfolio","Risk Parity, Unlevered","Risk Parity")
+  library(e1071)   
+  final$`Excess Return`=c(mean(table3$excess_stock),mean(table3$excess_bond),mean(table3$Excess_Vw_Ret),mean(table3$Excess_60_40_Ret),mean(table3$rp_unlevered),mean(table3$rp_levered))*12
+  
+  final$Volatility=c(sd(table3$excess_stock),sd(table3$excess_bond),sd(table3$Excess_Vw_Ret),sd(table3$Excess_60_40_Ret),sd(table3$rp_unlevered),sd(table3$rp_levered))*sqrt(12)
+  
+  final$`t-stat`=c(t.test(table3$excess_stock)[[1]],t.test(table3$excess_bond)[[1]],t.test(table3$Excess_Vw_Ret)[[1]],t.test(table3$Excess_60_40_Ret)[[1]],t.test(table3$rp_unlevered)[[1]],t.test(table3$rp_levered)[[1]])
+  
+  final$`Sharpe Ratio`=final$`Excess Return`/final$Volatility
+  
+  final$Skewness=c(skewness(table3$excess_stock),skewness(table3$excess_bond),skewness(table3$Excess_Vw_Ret),skewness(table3$Excess_60_40_Ret),skewness(table3$rp_unlevered),skewness(table3$rp_levered))
+  
+  final$`Excess Kurtosis`=c(kurtosis(table3$excess_stock),kurtosis(table3$excess_bond),kurtosis(table3$Excess_Vw_Ret),kurtosis(table3$Excess_60_40_Ret),kurtosis(table3$rp_unlevered),kurtosis(table3$rp_levered))
+  
+  return(final)
+}
+final=ps2_q4(table3)
+final
+```
